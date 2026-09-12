@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ranking Content Refresh Priority: A Decision-Support Model | FlyRank ML Internship</title>
+<style>
+  :root {
+    --ink: #1c2530; --muted: #5a6b7a; --line: #e3e8ec; --accent: #c0392b;
+    --bg-soft: #f7f9fa; --good: #27ae60;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: var(--ink); line-height: 1.65; background: #fff;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 56px 24px 96px; }
+  header.title-block { border-bottom: 3px solid var(--ink); padding-bottom: 28px; margin-bottom: 40px; }
+  h1 { font-size: 2rem; line-height: 1.25; margin: 0 0 12px; }
+  .subtitle { color: var(--muted); font-size: 1.05rem; margin: 0 0 20px; }
+  .meta { font-size: 0.9rem; color: var(--muted); }
+  h2 {
+    font-size: 1.35rem; margin: 48px 0 16px; padding-top: 8px; border-top: 1px solid var(--line);
+  }
+  h3 { font-size: 1.05rem; margin: 24px 0 8px; }
+  p { margin: 0 0 16px; }
+  .abstract {
+    background: var(--bg-soft); border-left: 4px solid var(--ink); padding: 20px 24px; border-radius: 4px;
+  }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0 24px; font-size: 0.95rem; }
+  th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+  th { background: var(--bg-soft); font-weight: 600; }
+  tr.highlight td { font-weight: 700; }
+  figure { margin: 24px 0; text-align: center; }
+  figure img { max-width: 100%; border: 1px solid var(--line); border-radius: 6px; }
+  figcaption { font-size: 0.85rem; color: var(--muted); margin-top: 8px; }
+  ul { padding-left: 22px; }
+  li { margin-bottom: 8px; }
+  code { background: var(--bg-soft); padding: 1px 6px; border-radius: 3px; font-size: 0.9em; }
+  a { color: var(--accent); }
+  .callout {
+    background: #fdf2f2; border: 1px solid #f5d5d3; border-radius: 6px; padding: 16px 20px; margin: 20px 0;
+    font-size: 0.95rem;
+  }
+  .callout strong { color: var(--accent); }
+  footer {
+    margin-top: 56px; padding-top: 24px; border-top: 1px solid var(--line);
+    font-size: 0.9rem; color: var(--muted);
+  }
+  .badge {
+    display: inline-block; background: var(--bg-soft); border: 1px solid var(--line); border-radius: 999px;
+    padding: 3px 12px; font-size: 0.8rem; margin-right: 8px; color: var(--muted);
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="title-block">
+    <span class="badge">Lane 2 — Refresh / Content Opportunity Scoring</span>
+    <span class="badge">FlyRank ML Internship Capstone</span>
+    <h1>Ranking Content Refresh Priority: A Decision-Support Model, Honestly Validated</h1>
+    <p class="subtitle">Which pages in a content portfolio deserve human review first — and how much should you trust the answer?</p>
+    <p class="meta">Daniyal Haider · Capstone research paper · <a href="https://github.com/daniyalhaider236/flyrank-ml">Source repository</a></p>
+  </header>
+
+  <section>
+    <h2>Abstract</h2>
+    <div class="abstract">
+      <p>Content teams need to prioritize which pages to review for refresh, but a simple staleness-and-volume
+      rule performs worse than random ordering on this dataset. This work builds a Logistic Regression model
+      on decision-time-available features — content age, update history, position, CTR, and content type —
+      validated with a client-grouped holdout to avoid learning client-specific shortcuts. The model reaches
+      a mean Precision@20 of 0.68 (range 0.50–0.75 across five client holdouts) against a 0.52 base rate,
+      clearly outperforming both the baseline rule and a more complex Random Forest. The result is packaged
+      as a five-archetype action playbook with reason codes, human-review requirements, and an explicit
+      no-automation policy — sized for decision support, not automated action.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>Introduction</h2>
+    <p>Content teams can't manually review every page every cycle. The practical question isn't "is this
+    page declining" in the abstract — it's <em>which pages should a human look at first, this cycle, and why</em>.
+    That's a ranking-and-triage problem, not a classification problem, and it needs an answer a content
+    editor can act on: a short list, a reason, and a clear line between "review this" and "leave it alone."</p>
+    <p>This paper documents an attempt to build that ranking honestly — including the places it broke,
+    the assumption it disproved along the way, and the limits it doesn't try to hide.</p>
+  </section>
+
+  <section>
+    <h2>Data</h2>
+    <p>This work uses the FlyRank ML Internship starter dataset: 30,000 anonymized content pages across
+    32 anonymized client accounts and three content types (comparison article, feedly article, keyword
+    article). Each row aggregates a 90-day trailing window plus two sequential 30-day comparison windows
+    used to compute a trend label. No client names, domains, raw exports, or credentials appear anywhere
+    in this analysis — all identifiers are anonymized hashes supplied by the dataset itself.</p>
+    <p><strong>Excluded from every model:</strong> <code>trend_direction</code>, <code>trend_pct</code>,
+    and the six <code>*_last_30d</code> / <code>*_prev_30d</code> columns (confirmed label-derived — see
+    Methodology), plus the four 90-day volume aggregates (<code>impressions_90d</code>, <code>clicks_90d</code>,
+    <code>pageviews_90d</code>, <code>sessions_90d</code>), which fully contain the exact 30-day window the
+    label is built from.</p>
+  </section>
+
+  <section>
+    <h2>Methodology</h2>
+    <h3>Label and a leakage check</h3>
+    <p>The target is <code>trend_direction == "down"</code>. Reconstructing this from the raw 30-day
+    windows — <code>(impressions_last_30d − impressions_prev_30d) / impressions_prev_30d</code> — correlates
+    with the disclosed <code>trend_pct</code> column at r = 0.9999999984, confirming the label's exact
+    construction and disqualifying those source columns as features. A second check found the dataset's
+    actual "declining" cutoff sits near ±20%, not the ±10% the FlyRank research paper discloses for this
+    same metric — a disclosed mismatch, not an assumed match.</p>
+
+    <h3>Features</h3>
+    <p><code>content_age_days</code>, <code>days_since_last_update</code>, <code>avg_position</code>,
+    <code>ctr</code>, <code>word_count</code>, <code>search_volume</code>, <code>competition</code> (each
+    with a missingness flag), and one-hot encoded <code>content_type</code>.</p>
+
+    <h3>Baseline</h3>
+    <p>A transparent rule: <code>stale (≥90 days since update) × visible (≥300 impressions) ×
+    impressions_90d</code>, with one reason code and one action label.</p>
+
+    <h3>Validation design</h3>
+    <p>Splitting rows at random lets a model see hundreds of near-duplicate rows from the same client in
+    both train and test — a real mechanism, confirmed directly on this data. All results below instead use
+    a <code>GroupShuffleSplit</code> by client (75/25), so the test measures generalization to <em>new</em>
+    clients, not memorization of ones already seen. With only 32 total clients, a single 8-client holdout
+    is a noisy estimate, so the same architecture was re-run across 5 different holdouts and reported as a
+    range.</p>
+
+    <div class="callout">
+      <strong>A note on methodology, in the spirit of this project:</strong> reading FlyRank's own research
+      paper with the same scrutiny applied here raised two open questions worth naming. First, the paper's
+      "Freshness Multiplier" finding (a 57x impression lift from refreshing mature content) doesn't specify
+      whether it compares the same pages before and after refresh, or two different populations — refreshed
+      pages may simply be ones a team already judged worth the effort. Second, the paper's own ML appendix
+      reports 71% holdout accuracy for a growth/decline classifier without disclosing whether that holdout
+      is grouped by brand; this project's own single-split numbers moved by roughly ±0.10–0.15 across
+      different client holdouts, which is the reason that disclosure matters.
+    </div>
+  </section>
+
+  <section>
+    <h2>Results</h2>
+    <table>
+      <tr><th>Method</th><th>Precision@20</th><th>Precision@50</th></tr>
+      <tr><td>Base rate (random order)</td><td>0.517</td><td>0.517</td></tr>
+      <tr><td>Baseline rule (stale × visible × volume)</td><td>0.200</td><td>0.300</td></tr>
+      <tr><td>Random Forest</td><td>0.300</td><td>0.440</td></tr>
+      <tr class="highlight"><td>Logistic Regression</td><td>0.750</td><td>0.680</td></tr>
+    </table>
+    <p>Across 5 client holdouts, Logistic Regression's Precision@20 ranged 0.50–0.75 (mean 0.68) and
+    Precision@50 ranged 0.48–0.80 (mean 0.64) — ahead of the baseline in every run, though the exact margin
+    depends on which clients are held out. The baseline rule scoring below random isn't a new failure: an
+    earlier signal check already found search volume is not a clean, monotonic predictor of decline, and
+    this result confirms it a second way. The more complex Random Forest did not outperform the simpler
+    model — added complexity wasn't rewarded here.</p>
+    <figure>
+      <img src="work/figures/model_vs_baseline.png" alt="Bar chart comparing Precision@20 and Precision@50 across base rate, baseline rule, and Logistic Regression">
+      <figcaption>Fig. 1 — Model vs. baseline, grouped-by-client holdout.</figcaption>
+    </figure>
+  </section>
+
+  <section>
+    <h2>Limitations &amp; honest framing</h2>
+    <ul>
+      <li><strong>Not causal.</strong> This model measures association with a declining-trend label; it
+      does not establish that refreshing a page causes recovery.</li>
+      <li><strong>Single-split numbers are noisy.</strong> With 32 total clients, any one holdout's
+      Precision@K should be read against the observed 0.50–0.75 range, not treated as a fixed truth.</li>
+      <li><strong>56% of the dataset (16,858 rows) shares a near-identical feature profile with at least 5
+      other pages that had different real outcomes.</strong> The model separates cohorts reliably; it often
+      cannot rank winners from losers within an identical-looking cohort.</li>
+      <li><strong>Small slices are unstable</strong> — buckets under roughly 200 rows should not be trusted
+      as standalone evidence.</li>
+      <li>This is a snapshot of an anonymized starter file, not the full data warehouse, and its label
+      threshold does not match the disclosed FlyRank methodology — a reminder that documented method and
+      actual data can quietly diverge.</li>
+      <li>8–26% of rows (depending on the field) are missing <code>word_count</code>, <code>search_volume</code>,
+      or <code>competition</code> and are imputed with an explicit missingness flag, not observed directly.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Ranked recommendations</h2>
+    <p>The validated model scores every page; two dimensions — predicted decline risk and current search
+    visibility — sort pages into five archetypes, worked in tier order:</p>
+    <table>
+      <tr><th>Archetype</th><th>Share of pages</th><th>Observed decline rate</th><th>Action</th></tr>
+      <tr><td>Priority Refresh</td><td>23.9%</td><td>66.4%</td><td><code>review_for_refresh</code></td></tr>
+      <tr><td>Quiet Decline</td><td>9.5%</td><td>58.4%</td><td><code>monitor_low_priority</code></td></tr>
+      <tr><td>Watch</td><td>33.3%</td><td>59.7%</td><td><code>watch_next_cycle</code></td></tr>
+      <tr><td>Protect</td><td>18.0%</td><td>45.0%</td><td><code>protect_periodic_check</code></td></tr>
+      <tr><td>Low Priority</td><td>15.3%</td><td>31.4%</td><td><code>monitor_only</code></td></tr>
+    </table>
+    <figure>
+      <img src="work/figures/archetype_distribution.png" alt="Bar chart showing the number of pages and decline rate for each of the five archetypes">
+      <figcaption>Fig. 2 — Archetype distribution and observed decline rate.</figcaption>
+    </figure>
+    <h3>Human review is required before acting</h3>
+    <p>On any Priority Refresh or Quiet Decline page: check real content quality (especially where
+    word count is unmeasured), rule out technical or indexing issues before assuming a content problem,
+    and confirm the underlying keyword's demand isn't itself fading.</p>
+    <h3>What should never be automated</h3>
+    <p>No auto-publishing or auto-editing from this output. No treating any single page's score as a
+    guarantee — it is a cohort-level measurement. No use in evaluating individual writers or teams. No
+    acting on a slice smaller than roughly 200 rows without a manual check.</p>
+    <h3>Monitoring</h3>
+    <p>Re-score monthly, matching the label's own 30-day windows. Re-audit — don't just trust the next
+    run — if a fresh holdout's Precision@20 falls near or below 0.50, if missingness rates drift from
+    today's baseline, or if the observed label threshold no longer matches ~±20% on a new data export.</p>
+  </section>
+
+  <section>
+    <h2>Reproducibility</h2>
+    <p>Full source, every weekly notebook, and this capstone's consolidated notebook are public:</p>
+    <ul>
+      <li>Repository: <a href="https://github.com/daniyalhaider236/flyrank-ml">github.com/daniyalhaider236/flyrank-ml</a></li>
+      <li>Capstone notebook: <code>work/notebooks/capstone.ipynb</code></li>
+      <li>Baseline, modeling, validation audit, and action playbook notebooks: <code>work/notebooks/w04</code>–<code>w07</code></li>
+      <li>Metrics receipts: <code>work/outputs/w07_metrics.json</code></li>
+    </ul>
+  </section>
+
+  <footer>
+    <p>Built on the FlyRank ML Internship dataset — <a href="https://flyrank.ai">flyrank.ai</a>.</p>
+  </footer>
+
+</div>
+</body>
+</html>
