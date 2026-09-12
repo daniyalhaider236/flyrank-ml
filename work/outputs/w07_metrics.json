@@ -1,0 +1,65 @@
+{
+  "generated_from": "w07_action_playbook.ipynb",
+  "lane": "Lane 2 - Refresh / Content Opportunity Scoring",
+  "label_definition": {
+    "column": "trend_direction == 'down'",
+    "paper_disclosed_threshold_pct": 10,
+    "observed_local_threshold_pct": 20
+  },
+  "validated_performance_w06": {
+    "split": "GroupShuffleSplit by client_id, test_size=0.25",
+    "base_rate": 0.517,
+    "week4_baseline_rule": {
+      "precision_at_20": 0.2,
+      "precision_at_50": 0.3
+    },
+    "logistic_regression_single_split_seed42": {
+      "precision_at_20": 0.75,
+      "precision_at_50": 0.68
+    },
+    "logistic_regression_5_seed_stability": {
+      "precision_at_20": {
+        "mean": 0.68,
+        "min": 0.5,
+        "max": 0.75,
+        "std": 0.093
+      },
+      "precision_at_50": {
+        "mean": 0.636,
+        "min": 0.48,
+        "max": 0.8,
+        "std": 0.109
+      }
+    },
+    "random_forest_single_split_seed42": {
+      "precision_at_20": 0.3,
+      "precision_at_50": 0.44
+    }
+  },
+  "leakage_checks": {
+    "trend_pct_correlation_with_last30_vs_prev30": 0.9999999984,
+    "with_vs_without_90d_aggregates_precision_at_20": {
+      "with": 0.8,
+      "without": 0.75
+    }
+  },
+  "human_review_flag": {
+    "profiles_with_5plus_pages_and_mixed_outcomes": 919,
+    "rows_affected": 16858,
+    "share_of_dataset": 0.5619
+  },
+  "archetype_counts": {
+    "Priority Refresh": 7162,
+    "Quiet Decline": 2838,
+    "Watch": 10000,
+    "Protect": 5409,
+    "Low Priority": 4591
+  },
+  "archetype_decline_rates": {
+    "Priority Refresh": 0.6642,
+    "Quiet Decline": 0.5839,
+    "Watch": 0.5971,
+    "Protect": 0.45,
+    "Low Priority": 0.3143
+  }
+}
